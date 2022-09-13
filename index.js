@@ -1,5 +1,19 @@
 const core = require("@actions/core");
 const fetch = require("cross-fetch");
+const {
+  RateLimiterMemory,
+  RateLimiterQueue,
+} = require("rate-limiter-flexible");
+
+// e.g. 1 request per 2 seconds
+const limiterFlexible = new RateLimiterMemory({
+  points: 1,
+  duration: 2,
+});
+
+const limiterQueue = new RateLimiterQueue(limiterFlexible, {
+  maxQueueSize: 100,
+});
 
 const orgName = core.getInput("org_name", {
   required: true,
@@ -46,13 +60,13 @@ const deleteOptions = {
 };
 
 /**
- * getReleasess
+ * getReleases
  *
  * Fetch a list of releases and filter based on version number
  *
  * @returns Promise<number> - array of release ids to purge
  */
-async function getReleasess() {
+async function getReleases() {
   const response = await fetch(appCenterUrl, getOptions);
   if (!response.ok) {
     throw new Error(
@@ -91,7 +105,7 @@ async function deleteRelease(releaseId) {
 
 async function main() {
   try {
-    const appReleases = await getReleasess();
+    const appReleases = await getReleases();
 
     if (!appReleases.length) {
       core.info(`No releases to purge`);
@@ -109,43 +123,24 @@ async function main() {
       core.info(`All rows will be purged!`);
     }
 
-    const releasesToPurge = [];
-    for (let i = 0; i < appReleases.length; i++) {
-      if (i >= toKeep) {
-        releasesToPurge.push(appReleases[i]);
-      }
-    }
+    // Only delete releases after the number to keep
+    const releasesToPurge = appReleases.slice(0, -toKeep);
 
     core.debug(`Release IDs to purge: ${JSON.stringify(releasesToPurge)}`);
 
-    // Fire off all the delete requests (in any order the engine sees fit) and wait for all of them to either succeed or fail
-    // const deleteResult = await Promise.allSettled(
-    //   releasesToPurge.map((releaseId) => {
-    //     if (dryRun) {
-    //       core.debug(`Dry run, not purging releaseId=${releaseId}`);
-    //       return Promise.resolve(releaseId);
-    //     }
-    //     core.debug(`Purging releaseId=${releaseId}`);
-    //     return deleteRelease(releaseId);
-    //   })
-    // );
+    // Run all delete requests in parallel (fast) - but limited by the rate limiter settings
+    const deleteResult = await Promise.allSettled(
+      releasesToPurge.map(async (releaseId) => {
+        await limiterQueue.removeTokens(1);
 
-    // Run all delete requests in sequence (slooooooow)
-    const deleteResult = [];
-    for (const releaseId of releasesToPurge) {
-      try {
         if (dryRun) {
           core.debug(`Dry run, not purging releaseId=${releaseId}`);
-          deleteResult.push({ status: "fulfilled", value: releaseId });
-          continue;
+          return releaseId;
         }
         core.debug(`Purging releaseId=${releaseId}`);
-        const result = await deleteRelease(releaseId);
-        deleteResult.push({ status: "fulfilled", value: result });
-      } catch (e) {
-        deleteResult.push({ status: "rejected", reason: e });
-      }
-    }
+        return deleteRelease(releaseId);
+      })
+    );
 
     // Grab the IDs of the releases that succeeded
     const succeededDeletedIds = deleteResult
