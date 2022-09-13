@@ -124,7 +124,7 @@ async function main() {
     }
 
     // Only delete releases after the number to keep
-    const releasesToPurge = appReleases.slice(0, -toKeep);
+    const releasesToPurge = appReleases.slice(0, toKeep);
 
     core.debug(`Release IDs to purge: ${JSON.stringify(releasesToPurge)}`);
 
