@@ -1,0 +1,29 @@
+name: 'App Center Purge'
+description: 'Purge old releases of apps in App Center, keeping only the last `to_keep` number of versions.'
+inputs:
+  org_name:
+    description: 'Organisation'
+    required: true
+    default: 'mx51'
+  app_name:
+    description: 'Application'
+    required: true
+    default: 'mxa'
+  app_version:
+    description: 'Version'
+    required: true
+    default: '1.0.0'
+  to_keep:
+    description: 'Number of versions to keep'
+    required: false
+    default: 1
+  dry_run:
+    description: 'Dry run, should we perform actual deletes'
+    required: false
+    default: true
+  api_key:
+    description: 'The App Center API key needed to perform the delete'
+    required: true
+runs:
+  using: 'node16'
+  main: 'index.js'

@@ -1,0 +1,24 @@
+{
+  "name": "appcenter-purge-github-action",
+  "version": "1.0.0",
+  "description": "A GitHub Action that can purge App Center of old uploads.",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://apkelly@github.com/mx51/AppCenter-Purge-Github-Action.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/mx51/AppCenter-Purge-Github-Action/issues"
+  },
+  "homepage": "https://github.com/mx51/AppCenter-Purge-Github-Action#readme",
+  "dependencies": {
+    "@actions/core": "^1.9.1",
+    "cross-fetch": "^3.1.5"
+  }
+}
