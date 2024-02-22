@@ -1,0 +1,6 @@
+# This is the CodeQL configuration file. If this repo utilises programming languages that have paths sometimes used to store 3rd party dependency code (i.e. dependency vendoring), those paths will be specified in thise file to exclude them from CodeQL scanning. If the repo does not contain such languages, this configuration file will be empty except for this preamble text and the config file name declaration.
+
+name: "CodeQL Configuration File"
+
+paths-ignore:
+  - '**/node_modules'
