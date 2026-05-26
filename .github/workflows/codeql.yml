@@ -1,21 +1,36 @@
-# For most projects, this workflow file will not need changing; you simply need
-# to commit it to your repository.
+# ============================================================================
+# 🛡️ MX51 CENTRALISED SECURITY TEMPLATE: CodeQL
+# ============================================================================
+# Description:
+#   Reusable workflow for running GitHub CodeQL advanced security scans.
+#   Automatically detects repository languages and executes analysis.
 #
-# You may wish to alter this file to override the set of languages analyzed,
-# or to provide custom queries or build logic.
+# Requirements:
+#   - The caller workflow MUST include `secrets: inherit` to allow Gradle 
+#     to access private packages and keystore credentials during manual builds.
 #
-# ******** NOTE ********
-# We have attempted to detect the languages in your repository. Please check
-# the `language` matrix defined below to confirm you have the correct set of
-# supported CodeQL languages.
-#
+# Inputs:
+#   - build_command (optional): Custom build command to bypass Autobuild for 
+#     complex monorepos. Only executes for the Java/Kotlin matrix job.
+#   - runner_size (optional): The machine type to run the analysis on 
+#     (e.g., 'ubuntu-latest-4core' for heavy builds). Defaults to 'ubuntu-latest'.
+# ============================================================================
 name: "CodeQL"
 
 on:
+  workflow_call:
+    inputs:
+      build_command:
+        description: "Optional custom build command to bypass Autobuild for complex monorepos."
+        required: false
+        type: string
+      runner_size:
+        description: "The machine type to run the analysis on. Defaults to standard 2-core."
+        required: false
+        type: string
+        default: 'ubuntu-latest'
   schedule:
-    - cron: '30 22 * * 2' # 9:30 AM each Wednesday AEDT (UTC+11)
-
-  # Allows you to run this workflow manually from the Actions tab
+    - cron: '30 22 * * 2'
   workflow_dispatch:
 
 jobs:
@@ -35,12 +50,7 @@ jobs:
     needs: create-matrix
     if: ${{ needs.create-matrix.outputs.matrix != '[]' }}
     name: Analyze
-    # Runner size impacts CodeQL analysis time. To learn more, please see:
-    #   - https://gh.io/recommended-hardware-resources-for-running-codeql
-    #   - https://gh.io/supported-runners-and-hardware-resources
-    #   - https://gh.io/using-larger-runners
-    # Consider using larger runners for possible analysis time improvements.
-    runs-on: ${{ (matrix.language == 'swift' && 'macos-latest') || 'ubuntu-latest' }}
+    runs-on: ${{ (matrix.language == 'swift' && 'macos-latest') || inputs.runner_size || 'ubuntu-latest' }}
     timeout-minutes: ${{ (matrix.language == 'swift' && 120) || 360 }}
     permissions:
       actions: read
@@ -51,45 +61,39 @@ jobs:
       fail-fast: false
       matrix:
         language: ${{ fromJSON(needs.create-matrix.outputs.matrix) }}
-        # CodeQL supports [ 'c-cpp', 'csharp', 'go', 'java-kotlin', 'javascript-typescript', 'python', 'ruby', 'swift' ]
-        # Use only 'java-kotlin' to analyze code written in Java, Kotlin or both
-        # Use only 'javascript-typescript' to analyze code written in JavaScript, TypeScript or both
-        # Learn more about CodeQL language support at https://aka.ms/codeql-docs/language-support
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v3
+        uses: actions/checkout@v6
 
-      # Initializes the CodeQL tools for scanning.
       - name: Initialize CodeQL
-        uses: github/codeql-action/init@v2
+        uses: github/codeql-action/init@v4
         with:
           config-file: ./.github/codeql-config.yml
           languages: ${{ matrix.language }}
-          # If you wish to specify custom queries, you can do so here or in a config file.
-          # By default, queries listed here will override any specified in a config file.
-          # Prefix the list here with "+" to use these queries and those in the config file.
 
-          # For more details on CodeQL's query packs, refer to: https://docs.github.com/en/code-security/code-scanning/automatically-scanning-your-code-for-vulnerabilities-and-errors/configuring-code-scanning#using-queries-in-ql-packs
-          # queries: security-extended,security-and-quality
-
-
-      # Autobuild attempts to build any compiled languages (C/C++, C#, Go, Java, or Swift).
-      # If this step fails, then you should remove it and run the build manually (see below)
       - name: Autobuild
-        uses: github/codeql-action/autobuild@v2
+        if: ${{ inputs.build_command == '' }}
+        uses: github/codeql-action/autobuild@v4
 
-      # ℹ️ Command-line programs to run using the OS shell.
-      # 📚 See https://docs.github.com/en/actions/using-workflows/workflow-syntax-for-github-actions#jobsjob_idstepsrun
-
-      #   If the Autobuild fails above, remove it and uncomment the following three lines.
-      #   modify them (or add more) to build your code if your project, please refer to the EXAMPLE below for guidance.
-
-      # - run: |
-      #     echo "Run, Build Application using script"
-      #     ./location_of_script_within_repo/buildscript.sh
+      - name: Manual Build
+        if: ${{ inputs.build_command != '' && matrix.language == 'java' }}
+        run: ${{ inputs.build_command }}
+        env:
+          GPR_USER: ${{ github.actor }}
+          GPR_TOKEN: ${{ secrets.BANKOBOT_PAT_GITHUB_PACKAGES }}
+          MVN_SSMPOSSDK_VIEWER_USERNAME: ${{ secrets.MVN_SSMPOSSDK_VIEWER_USERNAME }}
+          MVN_SSMPOSSDK_VIEWER_PASSWORD: ${{ secrets.MVN_SSMPOSSDK_VIEWER_PASSWORD }}
+          KEYSTORE_DEBUG_PASSWORD: ${{ secrets.KEYSTORE_DEBUG_PASSWORD }}
+          KEYSTORE_COMMONWEALTHBANK_PASSWORD: ${{ secrets.KEYSTORE_COMMONWEALTHBANK_PASSWORD }}
+          KEYSTORE_GECKOBANK_PASSWORD: ${{ secrets.KEYSTORE_GECKOBANK_PASSWORD }}
+          KEYSTORE_NEXTPAYMENTS_PASSWORD: ${{ secrets.KEYSTORE_NEXTPAYMENTS_PASSWORD }}
+          KEYSTORE_TILLPAYMENTS_PASSWORD: ${{ secrets.KEYSTORE_TILLPAYMENTS_PASSWORD }}
+          KEYSTORE_WESTPAC_PASSWORD: ${{ secrets.KEYSTORE_WESTPAC_PASSWORD }}
+          KEYSTORE_FISERV_PASSWORD: ${{ secrets.KEYSTORE_FISERV_PASSWORD }}
+          KEYSTORE_POSPAY_PASSWORD: ${{ secrets.KEYSTORE_POSPAY_PASSWORD }}
 
       - name: Perform CodeQL Analysis
-        uses: github/codeql-action/analyze@v2
+        uses: github/codeql-action/analyze@v4
         with:
           category: "/language:${{matrix.language}}"
