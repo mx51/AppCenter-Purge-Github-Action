@@ -1,16 +1,52 @@
+# MX51 PUBLIC CodeQL SCAN
+# Self-contained scan for public repos (cannot use the private central template).
+# Edit here in github-security-automation and re-run the push action to update all public repos.
 name: "CodeQL"
-
 on:
   schedule:
-    - cron: '30 22 * * 2'
+    - cron: '30 22 * * 5'   # weekly, UTC
   workflow_dispatch:
 
 jobs:
-  run-security-scan:
-    uses: mx51/github-security-automation/.github/workflows/codeql.yml@main
-    # Uncomment and modify the lines below ONLY if the repo requires manual compilation
-    # with:
-    #   runner_size: "ubuntu-latest-4core"
-    #   build_command: "./gradlew clean build"
-    secrets: inherit
-    
+  create-matrix:
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.set-matrix.outputs.languages }}
+    steps:
+      - name: Get languages from repo
+        id: set-matrix
+        uses: advanced-security/set-codeql-language-matrix@v1
+        with:
+          access-token: ${{ secrets.GITHUB_TOKEN }}
+          endpoint: ${{ github.event.repository.languages_url }}
+
+  analyze:
+    needs: create-matrix
+    if: ${{ needs.create-matrix.outputs.matrix != '[]' }}
+    name: Analyze
+    runs-on: ${{ (matrix.language == 'swift' && 'macos-latest') || 'ubuntu-latest' }}
+    timeout-minutes: ${{ (matrix.language == 'swift' && 120) || 360 }}
+    permissions:
+      actions: read
+      contents: read
+      security-events: write
+    strategy:
+      fail-fast: false
+      matrix:
+        language: ${{ fromJSON(needs.create-matrix.outputs.matrix) }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v4
+        with:
+          languages: ${{ matrix.language }}
+
+      - name: Autobuild
+        uses: github/codeql-action/autobuild@v4
+
+      - name: Perform CodeQL Analysis
+        uses: github/codeql-action/analyze@v4
+        with:
+          category: "/language:${{matrix.language}}"
